@@ -1,24 +1,14 @@
 import TelegramBot from "node-telegram-bot-api";
-import { exec } from "child_process";
 import fs from "fs";
-import path from "path";
 import express from "express";
-import { fileURLToPath } from "url";
+import youtubedl from "yt-dlp-exec";
 
-// Fayl yo‘li
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Express server
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Telegram token
 const TelegramToken = process.env.BOT_TOKEN || "8136690370:AAG3ywEPYHZ-P2uiwVHunGWsp9N78Iq0KLU";
 const bot = new TelegramBot(TelegramToken, { polling: true });
-
-// Ffmpeg yo‘li
-const ffmpegPath = path.join(__dirname, "ffmpeg.exe");
 
 // Kanallar
 const channels = ["@intention_academy", "@brown_blog"];
@@ -100,26 +90,23 @@ bot.on("message", async (msg) => {
   bot.sendMessage(chatId, "🎬 Video yuklanmoqda, biroz kuting...");
 
   const fileName = `video_${Date.now()}.mp4`;
-  const command = `yt-dlp --no-playlist --format mp4 -o "${fileName}" "${text}"`;
 
-  exec(command, async (error) => {
-    if (error) {
-      console.error("❌ Yuklash xatosi:", error.message);
-      return bot.sendMessage(chatId, "⚠️ Yuklashda xatolik yuz berdi!");
-    }
+  try {
+    await youtubedl(text, {
+      output: fileName,
+      format: "mp4",
+    });
 
-    try {
-      if (fs.existsSync(fileName)) {
-        await bot.sendVideo(chatId, fileName);
-        fs.unlinkSync(fileName);
-      } else {
-        bot.sendMessage(chatId, "⚠️ Video fayl topilmadi!");
-      }
-    } catch (err) {
-      console.error("Video yuborishda xato:", err.message);
-      bot.sendMessage(chatId, "⚠️ Video yuborishda xato!");
+    if (fs.existsSync(fileName)) {
+      await bot.sendVideo(chatId, fileName);
+      fs.unlinkSync(fileName);
+    } else {
+      bot.sendMessage(chatId, "⚠️ Video topilmadi!");
     }
-  });
+  } catch (err) {
+    console.error("❌ Yuklash xatosi:", err.message);
+    bot.sendMessage(chatId, "⚠️ Yuklashda xato yuz berdi!");
+  }
 });
 
 // === Express health check ===
