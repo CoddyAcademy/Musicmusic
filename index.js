@@ -1,17 +1,24 @@
-const TelegramBot = require("node-telegram-bot-api");
-const { exec } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+import TelegramBot from "node-telegram-bot-api";
+import { exec } from "child_process";
+import fs from "fs";
+import path from "path";
+import express from "express";
 
-const TelegramToken = "8136690370:AAG3ywEPYHZ-P2uiwVHunGWsp9N78Iq0KLU";
+// === Configlar ===
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Telegram tokenni env orqali oling (Koyeb uchun xavfsizroq)
+const TelegramToken = process.env.BOT_TOKEN || "8136690370:AAG3ywEPYHZ-P2uiwVHunGWsp9N78Iq0KLU";
 const bot = new TelegramBot(TelegramToken, { polling: true });
 
-const ffmpegPath = path.join(__dirname, "ffmpeg.exe");
+// ffmpeg joylashuvi
+const ffmpegPath = path.join(process.cwd(), "ffmpeg.exe");
 
-
+// Kanal ro‘yxati
 const channels = ["@intention_academy", "@brown_blog"];
 
-
+// === Obuna tekshirish funksiyasi ===
 async function isSubscribed(userId) {
   try {
     for (const channel of channels) {
@@ -31,10 +38,9 @@ async function isSubscribed(userId) {
   }
 }
 
-
+// === Start komandasi ===
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-
   const options = {
     reply_markup: {
       inline_keyboard: [
@@ -54,7 +60,7 @@ bot.onText(/\/start/, async (msg) => {
   );
 });
 
-
+// === Callback javob ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id;
@@ -78,23 +84,16 @@ bot.on("callback_query", async (query) => {
           ],
         },
       };
-
-      bot.sendMessage(
-        chatId,
-        "⚠️ Siz hali barcha kanallarga obuna bo'lmagansiz!",
-        options
-      );
+      bot.sendMessage(chatId, "⚠️ Siz hali barcha kanallarga obuna bo‘lmagansiz!", options);
     }
   }
 });
 
-
+// === Linkni qayta ishlovchi ===
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
-
-
-  if (text.startsWith("/")) return;
+  if (!text || text.startsWith("/")) return;
 
   const subscribed = await isSubscribed(msg.from.id);
   if (!subscribed) {
@@ -109,10 +108,10 @@ bot.on("message", async (msg) => {
         ],
       },
     };
-    return bot.sendMessage(chatId, "⚠️ Iltimos, avval kanallarga obuna bo'ling!", options);
+    return bot.sendMessage(chatId, "⚠️ Iltimos, avval kanallarga obuna bo‘ling!", options);
   }
 
-
+  // Link tekshiruvi
   if (
     !text.includes("youtube.com") &&
     !text.includes("youtu.be") &&
@@ -148,4 +147,13 @@ bot.on("message", async (msg) => {
   });
 });
 
-console.log("🤖 Bot ishga tushdi (node-telegram-bot-api + obuna tekshiruv)...");
+// === Express server (Koyeb uchun kerak) ===
+app.get("/", (req, res) => {
+  res.send("🤖 Bot sog‘lom ishlayapti!");
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server ${PORT}-portda ishlayapti`);
+});
+
+console.log("🤖 Bot ishga tushdi (Koyeb + polling + obuna tekshirish)...");
