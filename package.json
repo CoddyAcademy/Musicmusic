@@ -1,19 +1,17 @@
 {
-  "name": "telegram-bot",
+  "name": "telegram-video-bot",
   "version": "1.0.0",
-  "description": "Telegram video downloader bot (YouTube, Instagram, TikTok)",
-  "main": "index.js",
   "type": "module",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "build": "echo 'No build step needed'",
-    "dev": "nodemon index.js"
+    "build": "echo 'No build step required'"
   },
   "dependencies": {
     "express": "^4.21.1",
     "node-telegram-bot-api": "^0.66.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18"
   }
 }
