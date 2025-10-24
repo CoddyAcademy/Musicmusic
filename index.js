@@ -1,16 +1,14 @@
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
 import express from "express";
-import youtubedl from "yt-dlp-exec";
+import { exec } from "child_process";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 
-// Telegram token
 const TelegramToken = process.env.BOT_TOKEN || "8136690370:AAG3ywEPYHZ-P2uiwVHunGWsp9N78Iq0KLU";
 const bot = new TelegramBot(TelegramToken, { polling: true });
 
-// Kanallar
 const channels = ["@intention_academy", "@brown_blog"];
 
 // === Obuna tekshirish ===
@@ -27,8 +25,7 @@ async function isSubscribed(userId) {
       }
     }
     return true;
-  } catch (err) {
-    console.error("❌ Obuna tekshirishda xato:", err.message);
+  } catch {
     return false;
   }
 }
@@ -36,7 +33,7 @@ async function isSubscribed(userId) {
 // === Start komandasi ===
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  const options = {
+  const keyboard = {
     reply_markup: {
       inline_keyboard: [
         [
@@ -47,73 +44,63 @@ bot.onText(/\/start/, async (msg) => {
       ],
     },
   };
-
-  bot.sendMessage(chatId, "👋 Salom! Quyidagi kanallarga obuna bo‘ling:", options);
+  bot.sendMessage(chatId, "👋 Salom! Quyidagi kanallarga obuna bo‘ling:", keyboard);
 });
 
 // === Callback ===
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const userId = query.from.id;
-
   if (query.data === "check_sub") {
-    const subscribed = await isSubscribed(userId);
-    if (subscribed) {
+    const ok = await isSubscribed(userId);
+    if (ok) {
       bot.sendMessage(chatId, "✅ Obuna tasdiqlandi! Endi menga video link yuboring.");
     } else {
-      bot.sendMessage(chatId, "⚠️ Avval barcha kanallarga obuna bo‘ling!");
+      bot.sendMessage(chatId, "⚠️ Hali obuna bo‘lmagansiz!");
     }
   }
 });
 
-// === Link qabul qilish ===
+// === Linklarni qayta ishlash ===
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
   if (!text || text.startsWith("/")) return;
 
   const subscribed = await isSubscribed(msg.from.id);
-  if (!subscribed) {
-    return bot.sendMessage(chatId, "⚠️ Avval kanallarga obuna bo‘ling!");
-  }
+  if (!subscribed)
+    return bot.sendMessage(chatId, "⚠️ Iltimos, avval kanallarga obuna bo‘ling!");
 
   if (
     !text.includes("youtube.com") &&
     !text.includes("youtu.be") &&
     !text.includes("instagram.com") &&
-    !text.includes("reel") &&
     !text.includes("tiktok.com")
-  ) {
+  )
     return bot.sendMessage(chatId, "❌ Faqat YouTube, Instagram yoki TikTok link yuboring!");
-  }
 
   bot.sendMessage(chatId, "🎬 Video yuklanmoqda, biroz kuting...");
 
   const fileName = `video_${Date.now()}.mp4`;
+  const command = `yt-dlp --no-playlist --format mp4 --no-ffmpeg -o "${fileName}" "${text}"`;
 
-  try {
-    await youtubedl(text, {
-      output: fileName,
-      format: "mp4",
-    });
+  const child = exec(command);
 
-    if (fs.existsSync(fileName)) {
-      await bot.sendVideo(chatId, fileName);
-      fs.unlinkSync(fileName);
+  child.on("exit", async (code) => {
+    if (code === 0 && fs.existsSync(fileName)) {
+      try {
+        await bot.sendVideo(chatId, fileName);
+        fs.unlinkSync(fileName);
+      } catch (e) {
+        bot.sendMessage(chatId, "⚠️ Video yuborishda xato!");
+      }
     } else {
-      bot.sendMessage(chatId, "⚠️ Video topilmadi!");
+      bot.sendMessage(chatId, "⚠️ Yuklab bo‘lmadi!");
     }
-  } catch (err) {
-    console.error("❌ Yuklash xatosi:", err.message);
-    bot.sendMessage(chatId, "⚠️ Yuklashda xato yuz berdi!");
-  }
+  });
 });
 
 // === Express health check ===
-app.get("/", (req, res) => {
-  res.send("🤖 Bot sog‘lom ishlayapti!");
-});
+app.get("/", (req, res) => res.send("🤖 Bot sog‘lom ishlayapti!"));
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server ${PORT}-portda ishlayapti`);
-});
+app.listen(PORT, () => console.log(`✅ Server ${PORT}-portda ishlayapti`));
