@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "build": "echo 'No build step required'"
-  },
+ "scripts": {
+  "build": "apt-get update && apt-get install -y ffmpeg && pip install -U yt-dlp",
+  "start": "node index.js"
+},
   "dependencies": {
     "express": "^4.21.1",
     "node-telegram-bot-api": "^0.66.0"

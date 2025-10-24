@@ -82,8 +82,7 @@ bot.on("message", async (msg) => {
   bot.sendMessage(chatId, "🎬 Video yuklanmoqda, biroz kuting...");
 
   const fileName = `video_${Date.now()}.mp4`;
-  const command = `yt-dlp --no-playlist --format mp4 --no-ffmpeg -o "${fileName}" "${text}"`;
-
+  const command = `yt-dlp --no-playlist -f mp4 -o "${fileName}" "${text}"`;
   const child = exec(command);
 
   child.on("exit", async (code) => {
