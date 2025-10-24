@@ -1,46 +1,151 @@
-const { Telegraf } = require("telegraf");
+const TelegramBot = require("node-telegram-bot-api");
 const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const TelegramToken = "8062034936:AAGiExYSUBuy25M8_EalixEFW8Z5dJnehIU";
-const bot = new Telegraf(TelegramToken);
+const TelegramToken = "8136690370:AAG3ywEPYHZ-P2uiwVHunGWsp9N78Iq0KLU";
+const bot = new TelegramBot(TelegramToken, { polling: true });
 
 const ffmpegPath = path.join(__dirname, "ffmpeg.exe");
 
-bot.start((ctx) => ctx.reply("🎵 Menga YouTube, yoki Instagram, yoki Tik tok link yuboring"));
 
-bot.on("text", async (ctx) => {
-  const url = ctx.message.text.trim();
+const channels = ["@intention_academy", "@brown_blog"];
 
-  if (!url.includes("youtube.com") && !url.includes("youtu.be") && !url.includes("instagram.com") && !url.includes("reel") && !url.includes("tiktok.com")){
-    return ctx.reply("❌ Faqat YouTube, Instagram, Tiktok link yuboring!");
+
+async function isSubscribed(userId) {
+  try {
+    for (const channel of channels) {
+      const member = await bot.getChatMember(channel, userId);
+      if (
+        member.status !== "member" &&
+        member.status !== "administrator" &&
+        member.status !== "creator"
+      ) {
+        return false;
+      }
+    }
+    return true;
+  } catch (err) {
+    console.error("❌ Obuna tekshirishda xato:", err);
+    return false;
+  }
+}
+
+
+bot.onText(/\/start/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  const options = {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "📢 Kanal 1", url: `https://t.me/${channels[0].replace("@", "")}` },
+          { text: "📢 Kanal 2", url: `https://t.me/${channels[1].replace("@", "")}` },
+        ],
+        [{ text: "✅ Obuna bo‘ldim", callback_data: "check_sub" }],
+      ],
+    },
+  };
+
+  bot.sendMessage(
+    chatId,
+    "👋 Salom! Botdan foydalanish uchun quyidagi kanallarga obuna bo‘ling:",
+    options
+  );
+});
+
+
+bot.on("callback_query", async (query) => {
+  const chatId = query.message.chat.id;
+  const userId = query.from.id;
+
+  if (query.data === "check_sub") {
+    const subscribed = await isSubscribed(userId);
+    if (subscribed) {
+      bot.sendMessage(
+        chatId,
+        "✅ Obuna tasdiqlandi! Endi menga YouTube, Instagram yoki TikTok link yuboring."
+      );
+    } else {
+      const options = {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "📢 Kanal 1", url: `https://t.me/${channels[0].replace("@", "")}` },
+              { text: "📢 Kanal 2", url: `https://t.me/${channels[1].replace("@", "")}` },
+            ],
+            [{ text: "✅ Obuna bo‘ldim", callback_data: "check_sub" }],
+          ],
+        },
+      };
+
+      bot.sendMessage(
+        chatId,
+        "⚠️ Siz hali barcha kanallarga obuna bo'lmagansiz!",
+        options
+      );
+    }
+  }
+});
+
+
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+
+
+  if (text.startsWith("/")) return;
+
+  const subscribed = await isSubscribed(msg.from.id);
+  if (!subscribed) {
+    const options = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "📢 Kanal 1", url: `https://t.me/${channels[0].replace("@", "")}` },
+            { text: "📢 Kanal 2", url: `https://t.me/${channels[1].replace("@", "")}` },
+          ],
+          [{ text: "✅ Obuna bo‘ldim", callback_data: "check_sub" }],
+        ],
+      },
+    };
+    return bot.sendMessage(chatId, "⚠️ Iltimos, avval kanallarga obuna bo'ling!", options);
   }
 
-  ctx.reply("🎧 Yuklanmoqda, biroz kuting...");
 
-  const fileName = `audio_${Date.now()}.mp3`;
-  const command = `yt-dlp.exe -x --no-playlist --audio-format mp3 --ffmpeg-location "${ffmpegPath}" -o "${fileName}" "${url}"`;
+  if (
+    !text.includes("youtube.com") &&
+    !text.includes("youtu.be") &&
+    !text.includes("instagram.com") &&
+    !text.includes("reel") &&
+    !text.includes("tiktok.com")
+  ) {
+    return bot.sendMessage(chatId, "❌ Faqat YouTube, Instagram yoki TikTok link yuboring!");
+  }
 
-  exec(command, async (error, stdout, stderr) => {
+  bot.sendMessage(chatId, "🎬 Video yuklanmoqda, biroz kuting...");
+
+  const fileName = `video_${Date.now()}.mp4`;
+  const command = `yt-dlp.exe --no-playlist --format mp4 --ffmpeg-location "${ffmpegPath}" -o "${fileName}" "${text}"`;
+
+  exec(command, async (error) => {
     if (error) {
-      console.error("❌ Xatolik:", error);
-      return ctx.reply("⚠️ Yuklashda xatolik yuz berdi!");
+      console.error("❌ Yuklash xatosi:", error);
+      return bot.sendMessage(chatId, "⚠️ Yuklashda xatolik yuz berdi!");
     }
 
     try {
       if (fs.existsSync(fileName)) {
-        await ctx.replyWithAudio({ source: fileName });
+        await bot.sendVideo(chatId, fileName);
         fs.unlinkSync(fileName);
       } else {
-        ctx.reply("⚠️ Audio fayl topilmadi!");
+        bot.sendMessage(chatId, "⚠️ Video fayl topilmadi!");
       }
     } catch (err) {
-      console.error("Audio yuborishda xato:", err);
-      ctx.reply("⚠️ Audio yuborishda xato!");
+      console.error("Video yuborishda xato:", err);
+      bot.sendMessage(chatId, "⚠️ Video yuborishda xato!");
     }
   });
 });
 
-bot.launch();
-console.log("🤖 Bot ishga tushdi...");
+console.log("🤖 Bot ishga tushdi (node-telegram-bot-api + obuna tekshiruv)...");
